@@ -11,29 +11,33 @@ type ChatMessage = {
 
 export const OpenAIStream = async (
   inputCode: string,
-  model: string | undefined,
+  _model: string | undefined,
   key: string | undefined,
   messages?: ChatMessage[],
 ) => {
-  const fullMessages: ChatMessage[] =
+  const conversation =
     messages && messages.length > 0
-      ? [...messages, { role: 'user', content: inputCode }]
+      ? [
+          ...messages.map((m) => ({
+            role: m.role,
+            content: m.content,
+          })),
+          { role: 'user', content: inputCode },
+        ]
       : [{ role: 'user', content: inputCode }];
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+  const response = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${key}`,
     },
     body: JSON.stringify({
-      model: 'gpt-4o', // force GPT-4o
-      messages: fullMessages,
-      temperature: 0.9,
+      model: 'gpt-4o',
+      input: conversation,
+      temperature: 0.8,
       top_p: 0.9,
-      presence_penalty: 0.6,
-      frequency_penalty: 0.4,
-      max_tokens: 300,
+      max_output_tokens: 250,
       stream: true,
     }),
   });
@@ -60,8 +64,8 @@ export const OpenAIStream = async (
 
         try {
           const json = JSON.parse(data);
-          const text = json.choices?.[0]?.delta?.content;
 
+          const text = json.output_text;
           if (text) {
             controller.enqueue(encoder.encode(text));
           }
@@ -80,4 +84,3 @@ export const OpenAIStream = async (
 
   return stream;
 };
-
