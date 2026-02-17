@@ -37,7 +37,7 @@ export const OpenAIStream = async (
       input: conversation,
       temperature: 0.8,
       top_p: 0.9,
-      max_output_tokens: 250,
+      max_output_tokens: 300,
       stream: true,
     }),
   });
@@ -52,7 +52,7 @@ export const OpenAIStream = async (
 
   const stream = new ReadableStream({
     async start(controller) {
-      const onParse = (event: ParsedEvent | ReconnectInterval) => {
+      const parser = createParser((event: ParsedEvent | ReconnectInterval) => {
         if (event.type !== 'event') return;
 
         const data = event.data;
@@ -65,16 +65,20 @@ export const OpenAIStream = async (
         try {
           const json = JSON.parse(data);
 
-          const text = json.output_text;
-          if (text) {
+          // ✅ THIS is the correct streaming field for Responses API
+          if (json.type === 'response.output_text.delta') {
+            const text = json.delta;
             controller.enqueue(encoder.encode(text));
           }
+
+          if (json.type === 'response.completed') {
+            controller.close();
+          }
+
         } catch (err) {
           controller.error(err);
         }
-      };
-
-      const parser = createParser(onParse);
+      });
 
       for await (const chunk of response.body as any) {
         parser.feed(decoder.decode(chunk));
